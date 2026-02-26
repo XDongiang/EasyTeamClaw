@@ -1,8 +1,6 @@
 /**
- * Step: verify — End-to-end health check of the full installation.
- * Replaces 09-verify.sh
- *
- * Uses better-sqlite3 directly (no sqlite3 CLI), platform-aware service checks.
+ * Step: verify — End-to-end health check.
+ * Supports full mode and webui mode with dedicated service names.
  */
 import { execSync } from 'child_process';
 import fs from 'fs';
@@ -17,34 +15,50 @@ import { readWebUiConfig } from '../src/web-config.js';
 import { getServiceManager, isRoot } from './platform.js';
 import { emitStatus } from './status.js';
 
-function parseArgs(args: string[]): { mode: 'full' | 'webui' } {
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--mode' && args[i + 1]) {
-      const mode = args[i + 1];
-      if (mode === 'webui') return { mode: 'webui' };
-      i++;
-    }
-  }
-  return { mode: 'full' };
+interface VerifyOptions {
+  mode: 'full' | 'webui';
+  serviceName: string;
 }
 
-export async function run(args: string[]): Promise<void> {
-  const projectRoot = process.cwd();
-  const { mode } = parseArgs(args);
-  const homeDir = os.homedir();
+function parseArgs(args: string[]): VerifyOptions {
+  let mode: 'full' | 'webui' = 'full';
+  let serviceName = '';
 
-  logger.info({ mode }, 'Starting verification');
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--mode' && args[i + 1]) {
+      const val = args[i + 1];
+      if (val === 'webui' || val === 'full') mode = val;
+      i++;
+      continue;
+    }
+    if (args[i] === '--service-name' && args[i + 1]) {
+      serviceName = args[i + 1];
+      i++;
+      continue;
+    }
+  }
 
-  // 1. Check service status
+  if (!serviceName) {
+    serviceName = mode === 'webui' ? 'easyteamclaw-webui' : 'nanoclaw';
+  }
+
+  return { mode, serviceName };
+}
+
+function serviceLabel(serviceName: string): string {
+  return `com.${serviceName}`;
+}
+
+function detectServiceStatus(projectRoot: string, serviceName: string): string {
   let service = 'not_found';
   const mgr = getServiceManager();
 
   if (mgr === 'launchd') {
     try {
+      const label = serviceLabel(serviceName);
       const output = execSync('launchctl list', { encoding: 'utf-8' });
-      if (output.includes('com.nanoclaw')) {
-        // Check if it has a PID (actually running)
-        const line = output.split('\n').find((l) => l.includes('com.nanoclaw'));
+      if (output.includes(label)) {
+        const line = output.split('\n').find((l) => l.includes(label));
         if (line) {
           const pidField = line.trim().split(/\s+/)[0];
           service = pidField !== '-' && pidField ? 'running' : 'stopped';
@@ -56,14 +70,14 @@ export async function run(args: string[]): Promise<void> {
   } else if (mgr === 'systemd') {
     const prefix = isRoot() ? 'systemctl' : 'systemctl --user';
     try {
-      execSync(`${prefix} is-active nanoclaw`, { stdio: 'ignore' });
+      execSync(`${prefix} is-active ${serviceName}`, { stdio: 'ignore' });
       service = 'running';
     } catch {
       try {
         const output = execSync(`${prefix} list-unit-files`, {
           encoding: 'utf-8',
         });
-        if (output.includes('nanoclaw')) {
+        if (output.includes(serviceName)) {
           service = 'stopped';
         }
       } catch {
@@ -71,8 +85,7 @@ export async function run(args: string[]): Promise<void> {
       }
     }
   } else {
-    // Check for nohup PID file
-    const pidFile = path.join(projectRoot, 'nanoclaw.pid');
+    const pidFile = path.join(projectRoot, `${serviceName}.pid`);
     if (fs.existsSync(pidFile)) {
       try {
         const pid = fs.readFileSync(pidFile, 'utf-8').trim();
@@ -85,6 +98,18 @@ export async function run(args: string[]): Promise<void> {
       }
     }
   }
+
+  return service;
+}
+
+export async function run(args: string[]): Promise<void> {
+  const projectRoot = process.cwd();
+  const { mode, serviceName } = parseArgs(args);
+  const homeDir = os.homedir();
+
+  logger.info({ mode, serviceName }, 'Starting verification');
+
+  const service = detectServiceStatus(projectRoot, serviceName);
   logger.info({ service }, 'Service status');
 
   // 2. Check container runtime
@@ -125,7 +150,7 @@ export async function run(args: string[]): Promise<void> {
     whatsappAuth = 'authenticated';
   }
 
-  // 5. Check registered groups (using better-sqlite3, not sqlite3 CLI)
+  // 5. Check registered groups
   let registeredGroups = 0;
   const dbPath = path.join(STORE_DIR, 'messages.db');
   if (fs.existsSync(dbPath)) {
@@ -159,13 +184,13 @@ export async function run(args: string[]): Promise<void> {
       ? 'present'
       : 'missing';
 
-  // Determine overall status
   const status =
     mode === 'webui'
-      ? containerRuntime !== 'none' &&
-          credentials !== 'missing' &&
-          mountAllowlist !== 'missing' &&
-          webUiBuild === 'present'
+      ? service === 'running' &&
+        containerRuntime !== 'none' &&
+        credentials !== 'missing' &&
+        mountAllowlist !== 'missing' &&
+        webUiBuild === 'present'
         ? 'success'
         : 'failed'
       : service === 'running' &&
@@ -179,6 +204,7 @@ export async function run(args: string[]): Promise<void> {
 
   emitStatus('VERIFY', {
     MODE: mode,
+    SERVICE_NAME: serviceName,
     SERVICE: service,
     CONTAINER_RUNTIME: containerRuntime,
     CREDENTIALS: credentials,

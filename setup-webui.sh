@@ -19,7 +19,8 @@ Usage: ./setup-webui.sh [options]
 
 Options:
   --runtime auto|docker|apple-container   Container runtime (default: auto)
-  --with-service                          Also run setup service step
+  --with-service                          Run setup service step (default: on)
+  --no-service                            Skip service registration/start
   --skip-verify                           Skip final verify step
   --mount-empty                           Write empty mount allowlist (default)
   --mount-json-file <file>                Mount allowlist JSON file to apply
@@ -29,13 +30,14 @@ Options:
 
 Examples:
   ./setup-webui.sh
-  ./setup-webui.sh --runtime docker --with-service
+  ./setup-webui.sh --runtime docker
+  ./setup-webui.sh --no-service
   ./setup-webui.sh --mount-json-file ./config-examples/mount-allowlist.json
 USAGE
 }
 
 RUNTIME="auto"
-WITH_SERVICE="false"
+WITH_SERVICE="true"
 SKIP_VERIFY="false"
 NON_INTERACTIVE="false"
 MOUNT_MODE="empty"
@@ -50,6 +52,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-service)
       WITH_SERVICE="true"
+      shift
+      ;;
+    --no-service)
+      WITH_SERVICE="false"
       shift
       ;;
     --skip-verify)
@@ -271,31 +277,47 @@ esac
 run_setup_step webui
 
 # 6) Optional service
+WEBUI_SERVICE_NAME="easyteamclaw-webui"
+
 if [[ "$WITH_SERVICE" == "true" ]]; then
-  run_setup_step service
+  run_setup_step service --target webui --service-name "$WEBUI_SERVICE_NAME"
 else
-  log "Skipping service step (use --with-service to enable)"
+  log "Skipping service step (use --with-service or remove --no-service)"
 fi
 
 # 7) Verify
 if [[ "$SKIP_VERIFY" == "true" ]]; then
   log "Skipping verify step"
 else
-  run_setup_step verify --mode webui
+  run_setup_step verify --mode webui --service-name "$WEBUI_SERVICE_NAME"
 fi
 
 log "=== WebUI setup completed successfully ==="
+CONTROL_HINT=""
+case "$(uname -s)" in
+  Darwin)
+    CONTROL_HINT="launchctl kickstart -k gui/\\$(id -u)/com.${WEBUI_SERVICE_NAME}"
+    ;;
+  Linux)
+    CONTROL_HINT="systemctl --user restart ${WEBUI_SERVICE_NAME}"
+    ;;
+esac
+
 cat <<DONE
 
 Setup complete.
 
 Next:
-1. Start WebUI: npm run web
-2. Open: http://localhost:3000
-3. Add provider URL/API key, refresh model list, then chat.
+1. Open: http://localhost:3000
+2. Add provider URL/API key, refresh model list, then chat.
+3. If you disabled service setup, start manually: npm run web
 
 Logs:
 - $RUN_LOG
 - $PROJECT_ROOT/$SETUP_LOG_REL
+
+Service:
+- Name: ${WEBUI_SERVICE_NAME}
+${CONTROL_HINT:+- Restart command: ${CONTROL_HINT}}
 
 DONE

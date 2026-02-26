@@ -42,7 +42,13 @@ This project inherits NanoClaw's core architecture and refocuses product behavio
 Unattended install:
 
 ```bash
-./setup-webui.sh --yes --with-service
+./setup-webui.sh --yes
+```
+
+Service is enabled by default. To skip service registration:
+
+```bash
+./setup-webui.sh --no-service
 ```
 
 Show options:
@@ -53,21 +59,30 @@ Show options:
 
 ## Run and Use
 
-1. Start WebUI:
+1. Open:
+
+- `http://localhost:3000`
+
+2. If you installed with `--no-service`, start manually:
 
 ```bash
 npm run web
 ```
-
-2. Open:
-
-- `http://localhost:3000`
 
 3. In WebUI:
 - Add provider endpoint + API key
 - Refresh available model list and set defaults
 - Choose provider/model and chat
 - Search/install skills from the skill market
+
+## Service Control
+
+- Linux (systemd user):
+  `systemctl --user status easyteamclaw-webui`
+  `systemctl --user restart easyteamclaw-webui`
+- macOS (launchd):
+  `launchctl list | grep com.easyteamclaw-webui`
+  `launchctl kickstart -k gui/$(id -u)/com.easyteamclaw-webui`
 
 ## Verification
 
