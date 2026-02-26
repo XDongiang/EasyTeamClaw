@@ -1,82 +1,83 @@
 # EasyTeamClaw
 
-EasyTeamClaw 是基于 NanoClaw 演进的新项目，当前定位为 **本地 WebUI + 多模型提供商配置中心**。
+[中文说明](README_zh.md)
 
-## 与 NanoClaw 的继承关系
+EasyTeamClaw is an evolution of NanoClaw focused on a **local WebUI + multi-provider model configuration center**.
 
-本项目直接继承 NanoClaw 的核心能力，并在此基础上做了产品方向调整：
+## Relationship to NanoClaw
 
-1. 继承内容：
-- 容器执行架构（`src/container-runner.ts` + `container/agent-runner`）
-- Setup 分步框架（`setup/*.ts`）
-- 安全边界与挂载策略（`mount allowlist`）
-- Skills 机制与工具链
+This project inherits NanoClaw's core architecture and refocuses product behavior toward local-first usage.
 
-2. 当前方向：
-- 优先 WebUI 本地使用
-- 多 Provider（Claude / DeepSeek / Kimi / GLM / OpenAI-compatible）配置
-- 自动模型列表刷新
-- Skill 市场搜索与安装
+1. Inherited foundation:
+- Container execution architecture (`src/container-runner.ts` + `container/agent-runner`)
+- Step-based setup framework (`setup/*.ts`)
+- Security boundaries and mount allowlist model
+- Skills mechanism and tooling
 
-3. 代码迁移说明：
-- 已将本项目所需脚本与运行骨架迁移到仓库根目录。
-- `nanoclaw/` 目录目前保留为上游参考副本，方便对照与后续同步。
+2. Current direction:
+- WebUI-first local operation
+- Multi-provider config (Claude / DeepSeek / Kimi / GLM / OpenAI-compatible)
+- Automatic model list refresh from provider APIs
+- Skill market search and install
 
-## 项目结构（当前）
+3. Migration note:
+- Required scripts and runtime skeleton have been moved to this repository root.
+- This repo is now the active project home.
 
-- `setup-webui.sh`: 一键 WebUI 安装脚本（推荐）
-- `setup.sh`: bootstrap 依赖安装脚本
-- `setup/`: 分步 setup 实现（environment/container/mounts/webui/verify 等）
-- `src/`: 主程序与 WebUI API
-- `container/`: 容器执行器与 agent-runner
-- `.claude/skills/`: skills 目录
+## Project Layout
 
-## 快速安装（推荐）
+- `setup-webui.sh`: Robust one-command WebUI setup (recommended)
+- `setup.sh`: Bootstrap dependency installer
+- `setup/`: Step-based setup implementation (environment/container/mounts/webui/verify)
+- `src/`: App runtime and WebUI API
+- `container/`: Container runtime and agent-runner
+- `.claude/skills/`: Skills directory
+
+## Setup (Recommended)
 
 ```bash
 ./setup-webui.sh
 ```
 
-无人值守安装：
+Unattended install:
 
 ```bash
 ./setup-webui.sh --yes --with-service
 ```
 
-可选参数：
+Show options:
 
 ```bash
 ./setup-webui.sh --help
 ```
 
-## 启动与使用
+## Run and Use
 
-1. 启动 WebUI：
+1. Start WebUI:
 
 ```bash
 npm run web
 ```
 
-2. 打开：
+2. Open:
 
 - `http://localhost:3000`
 
-3. 在界面中完成：
+3. In WebUI:
+- Add provider endpoint + API key
+- Refresh available model list and set defaults
+- Choose provider/model and chat
+- Search/install skills from the skill market
 
-- 添加 Provider（URL + API Key）
-- 刷新可用模型并设置默认模型
-- 选择 Provider/Model 后发起对话
-- 在 Skill 市场搜索并安装技能
-
-## 常用验证命令
+## Verification
 
 ```bash
 npx tsx setup/index.ts --step webui
 npx tsx setup/index.ts --step verify -- --mode webui
 ```
 
-## 日志
+## Logs
 
 - `logs/setup-webui.log`
 - `logs/setup.log`
-- 运行日志见 `logs/` 与 `groups/*/logs/`
+- Runtime logs under `logs/` and `groups/*/logs/`
